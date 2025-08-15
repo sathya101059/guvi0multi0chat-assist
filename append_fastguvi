@@ -1,0 +1,225 @@
+"""
+Append & Translate New Q&As into Existing FAISS KB - Resume On Fail
+===================================================================
+
+Features:
+- Translates new Q&As into multiple Indian languages
+- Embeds only new Q&As (faster)
+- Auto-saves progress after every N items
+- Can resume exactly from where it stopped if interrupted
+"""
+
+import pickle
+import faiss
+import os
+import json
+import time
+from sentence_transformers import SentenceTransformer
+from deep_translator import GoogleTranslator
+
+# ==== CONFIGURATION ====
+EXISTING_DOCS_FILE = "fast_guvi_docs.pkl"        # existing docs file
+EXISTING_FAISS_INDEX = "fast_guvi_index.index"   # existing FAISS index
+PROGRESS_FILE = "append_progress.json"           # where we save our progress
+TEMP_DATA_FILE = "append_temp_data.pkl"          # temp storage for translated entries
+SAVE_EVERY = 10                                  # save progress every N translations
+
+SUPPORTED_LANGS = {  # languages for translation
+    "en": "English",
+    "hi": "Hindi",
+    "ta": "Tamil",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "gu": "Gujarati",
+    "pa": "Punjabi",
+    "mr": "Marathi"
+}
+
+# ==== YOUR NEW ENGLISH Q&A PAIRS ====
+new_pairs_raw = [
+    ("What does GUVI's Data Science course cover?",
+     "GUVI's Data Science course covers Python programming, statistics, machine learning, deep learning, data visualization, SQL, big data technologies, and real-world project implementation over 6-8 months."),
+    ("Is coding experience required for Data Science course?",
+     "No prior coding experience is required. The course starts with Python fundamentals and gradually progresses to advanced topics, making it perfect for beginners."),
+    # Courses - Data Science (15 pairs)
+    ("What does GUVI's Data Science course cover?", "GUVI's Data Science course covers Python programming, statistics, machine learning, deep learning, data visualization, SQL, big data technologies, and real-world project implementation over 6-8 months."),
+    ("Is coding experience required for Data Science course?", "No prior coding experience is required. The course starts with Python fundamentals and gradually progresses to advanced topics, making it perfect for beginners."),
+    ("How long is the Data Science course?", "The comprehensive Data Science course is 6-8 months long with flexible scheduling. Students can choose between self-paced learning and live instructor-led classes."),
+    ("What tools are taught in Data Science course?", "Students learn Python, SQL, pandas, NumPy, matplotlib, seaborn, scikit-learn, TensorFlow, Keras, Jupyter notebooks, Git, and cloud platforms like AWS."),
+    ("What projects are included in Data Science course?", "The course includes 5+ industry projects: predictive analytics, recommendation systems, sentiment analysis, image recognition, and a capstone project with real datasets."),
+    ("What career opportunities after Data Science course?", "Graduates can pursue roles as Data Scientist, Machine Learning Engineer, Data Analyst, Business Intelligence Analyst, AI Engineer with salaries ranging ₹6-15 LPA."),
+    ("Are there prerequisites for Data Science course?", "Basic mathematics knowledge and logical thinking ability are helpful. The course includes statistics refresher modules for students who need foundation building."),
+    ("Is the Data Science course industry-relevant?", "Yes, the curriculum is designed with input from industry experts and updated regularly to include latest tools, techniques, and market demands in data science."),
+    ("What certification do I get for Data Science?", "Students receive GUVI's industry-recognized Data Science certification upon completion, which is accepted by 1000+ hiring partners and can be shared on LinkedIn."),
+    ("Does Data Science course include placement support?", "Yes, the course includes comprehensive placement assistance: resume building, interview preparation, mock interviews, and direct connections with hiring partners."),
+    ("Can I learn Data Science part-time?", "Absolutely! GUVI offers flexible scheduling with evening batches, weekend sessions, and self-paced options for working professionals."),
+    ("What is the success rate of Data Science students?", "GUVI Data Science students have 85%+ placement success rate with average salary packages of ₹8-12 LPA, with many achieving significant career transitions."),
+    ("Are there Data Science course prerequisites?", "While no strict prerequisites exist, familiarity with basic mathematics, statistics concepts, and analytical thinking helps students excel in the program."),
+    ("What support is available during Data Science course?", "Students get 24/7 doubt support, dedicated mentors, peer learning groups, office hours with instructors, and access to GUVI's learning community."),
+    ("How is Data Science course assessed?", "Assessment includes coding assignments, project evaluations, quizzes, peer reviews, and a final capstone project presentation to industry experts."),
+    
+    # Courses - Full Stack Development (15 pairs)
+    ("What is included in Full Stack Development course?", "GUVI's Full Stack Development course covers HTML, CSS, JavaScript, React, Node.js, Express, MongoDB, SQL, REST APIs, deployment, and version control over 5-6 months."),
+    ("Which technologies are taught in Full Stack course?", "Students learn MERN stack (MongoDB, Express, React, Node.js), along with HTML5, CSS3, JavaScript ES6+, Bootstrap, Git, GitHub, and cloud deployment."),
+    ("How long does Full Stack Development course take?", "The comprehensive Full Stack Development course duration is 5-6 months with hands-on projects, including 80+ hours of live coding and 10+ real-world projects."),
+    ("What projects are built in Full Stack course?", "Students build e-commerce website, social media app, task management system, blog platform, and a final capstone project deployed on cloud platforms."),
+    ("What career paths after Full Stack Development?", "Graduates can work as Full Stack Developer, Frontend Developer, Backend Developer, Web Developer, JavaScript Developer with salaries ₹4-12 LPA."),
+    ("Is Full Stack Development course beginner-friendly?", "Yes, the course starts with web fundamentals and progressively builds to advanced concepts. No prior programming experience is required."),
+    ("What makes GUVI's Full Stack course unique?", "The course emphasizes practical learning with industry projects, live coding sessions, code reviews, and direct mentorship from working professionals."),
+    ("Are there job opportunities after Full Stack course?", "Excellent job opportunities exist with startups, MNCs, and product companies. GUVI has 500+ hiring partners specifically looking for full stack developers."),
+    ("What support is provided during Full Stack course?", "Students receive project guidance, code reviews, career counseling, resume building support, and interview preparation with mock technical interviews."),
+    ("How is Full Stack Development course structured?", "The course is project-based with weekly milestones, peer programming sessions, code challenges, and industry-standard development practices."),
+    ("What deployment platforms are covered?", "Students learn to deploy applications on Heroku, Netlify, AWS, and Vercel, understanding CI/CD pipelines and production environment management."),
+    ("Is version control taught in Full Stack course?", "Yes, Git and GitHub are integral parts of the curriculum, teaching collaborative development, branching strategies, and open source contribution."),
+    ("What database technologies are included?", "Both SQL (MySQL, PostgreSQL) and NoSQL (MongoDB) databases are covered, including database design, queries, and integration with applications."),
+    ("How current is the Full Stack curriculum?", "The curriculum is updated every 6 months to include latest frameworks, libraries, and industry best practices based on market demands."),
+    ("What soft skills are developed in Full Stack course?", "Students develop problem-solving abilities, debugging skills, project management, team collaboration, and technical communication through practical exercises."),
+    
+    # ZenClass Program (10 pairs)
+    ("What is GUVI ZenClass?", "ZenClass is GUVI's premium live instructor-led bootcamp offering structured learning with real-time interaction, personalized mentorship, and collaborative project development."),
+    ("How is ZenClass different from self-paced courses?", "ZenClass provides live instruction, immediate doubt resolution, peer interaction, regular assessments, and personalized attention, resulting in 40% higher completion rates."),
+    ("What is the class size in ZenClass?", "ZenClass maintains small batch sizes of 25-30 students to ensure personalized attention and effective interaction with instructors and peers."),
+    ("What schedule does ZenClass follow?", "ZenClass runs on structured schedules with 3-4 hours daily sessions, weekend projects, and flexible timing options for working professionals."),
+    ("Who are ZenClass instructors?", "ZenClass instructors are industry professionals with 5+ years experience working at companies like Google, Amazon, Microsoft, and leading startups."),
+    ("What additional support does ZenClass provide?", "ZenClass includes dedicated career counselors, resume reviews, mock interviews, portfolio building sessions, and direct recruiter connections."),
+    ("Is ZenClass more expensive than regular courses?", "ZenClass is premium-priced but offers significantly higher value through personalized mentorship, career support, and guaranteed placement assistance."),
+    ("What is the success rate of ZenClass students?", "ZenClass students achieve 95%+ placement success rate with average salary packages 20-30% higher than self-paced course graduates."),
+    ("Can working professionals join ZenClass?", "Yes, ZenClass offers evening and weekend batches specifically designed for working professionals with flexible scheduling and recorded sessions."),
+    ("What technology stack is covered in ZenClass?", "ZenClass covers modern tech stacks based on program chosen: MERN for Full Stack, Python ecosystem for Data Science, and comprehensive tools for each domain."),
+    
+    # Codekata Platform (10 pairs)
+    ("What is GUVI Codekata?", "Codekata is GUVI's gamified coding practice platform with 2000+ programming challenges designed to improve problem-solving skills and prepare for technical interviews."),
+    ("How many problems are available in Codekata?", "Codekata offers 2000+ coding problems across multiple difficulty levels: Beginner (400+), Intermediate (800+), Advanced (600+), and Expert (200+)."),
+    ("What programming languages does Codekata support?", "Codekata supports 15+ programming languages including Python, JavaScript, Java, C++, C, C#, PHP, Ruby, Go, Kotlin, and more."),
+    ("Is Codekata free for GUVI students?", "Yes, Codekata access is completely free for all GUVI registered users and includes detailed solutions and explanations for each problem."),
+    ("How does Codekata help in interview preparation?", "Codekata includes company-specific question sets, interview patterns from top tech companies, and timed challenges that simulate real interview conditions."),
+    ("Are there leaderboards in Codekata?", "Yes, Codekata features competitive leaderboards, achievement badges, weekly challenges, and peer comparison to motivate consistent practice."),
+    ("What topics are covered in Codekata?", "Codekata covers arrays, strings, recursion, dynamic programming, trees, graphs, sorting, searching, mathematical problems, and advanced algorithms."),
+    ("Can I practice Codekata in Indian languages?", "Yes, Codekata problem statements are available in Hindi, Tamil, Telugu, Kannada, and other Indian languages for better comprehension."),
+    ("How is Codekata different from other platforms?", "Codekata is tailored for Indian students with vernacular language support, company-specific questions, and integration with GUVI's learning ecosystem."),
+    ("Does Codekata track progress?", "Yes, Codekata provides detailed analytics including problem-solving speed, accuracy rates, topic-wise performance, and improvement suggestions."),
+    
+    # Placement and Career Support (15 pairs)
+    ("Does GUVI provide placement assistance?", "Yes, GUVI provides comprehensive placement assistance including resume building, interview preparation, mock interviews, and connections with 1000+ hiring partners."),
+    ("What is GUVI's placement success rate?", "GUVI maintains 80%+ placement success rate for students completing career-oriented programs, with many achieving 150-300% salary hikes."),
+    ("Which companies hire from GUVI?", "GUVI's hiring partners include TCS, Infosys, Wipro, Cognizant, HCL, Capgemini, Amazon, Microsoft, startups, and 1000+ other companies across India."),
+    ("What salary packages do GUVI students get?", "GUVI students typically receive packages ranging from ₹3.5-15 LPA depending on the course, experience level, and company, with average packages of ₹6-8 LPA."),
+    ("How does GUVI prepare students for interviews?", "GUVI provides mock technical interviews, HR interview preparation, system design discussions, coding challenge practice, and soft skills development sessions."),
+    ("Is placement support available for all courses?", "Placement support is primarily available for career-oriented programs like Data Science, Full Stack Development, and ZenClass bootcamps."),
+    ("How long does placement support continue?", "GUVI provides placement support for up to 12 months after course completion, including job search assistance and interview coordination."),
+    ("What career guidance does GUVI provide?", "GUVI offers career counseling sessions, portfolio building guidance, LinkedIn profile optimization, salary negotiation tips, and industry trend insights."),
+    ("Are there networking opportunities at GUVI?", "Yes, GUVI organizes alumni meetups, industry expert sessions, tech talks, hackathons, and networking events for students and professionals."),
+    ("Does GUVI help with career transitions?", "Absolutely! GUVI specializes in helping professionals transition from non-tech backgrounds to technology careers with dedicated transition programs."),
+    ("What support is available for freelancers?", "GUVI provides freelancing guidance, project portfolio development, client communication skills, and connections with freelancing opportunities."),
+    ("Are there internship opportunities through GUVI?", "Yes, GUVI facilitates internship placements with partner companies, providing hands-on industry experience before full-time roles."),
+    ("How does GUVI track placement success?", "GUVI maintains detailed placement tracking with student feedback, company reviews, salary progression monitoring, and long-term career growth analysis."),
+    ("What industries do GUVI students work in?", "GUVI alumni work across IT services, product companies, fintech, healthcare tech, e-commerce, education technology, and emerging startups."),
+    ("Is there ongoing career support after placement?", "Yes, GUVI provides ongoing career mentorship, skill upgrade guidance, and access to advanced courses for continuous professional development."),
+    
+    # Fees and Payment (8 pairs)
+    ("What are GUVI course fees?", "GUVI course fees vary by program: Self-paced courses ₹15,000-40,000, ZenClass bootcamps ₹50,000-80,000, with EMI options available for all courses."),
+    ("Are EMI options available for GUVI courses?", "Yes, GUVI offers flexible EMI plans starting from ₹2,500/month with 0% interest options and partnerships with leading financial institutions."),
+    ("What payment methods does GUVI accept?", "GUVI accepts credit cards, debit cards, UPI payments, net banking, digital wallets, and bank transfers for convenient course payments."),
+    ("Are there any scholarships available?", "GUVI offers merit-based scholarships, need-based financial aid, women-in-tech scholarships, and special discounts for students and early-bird registrations."),
+    ("Is there a refund policy for GUVI courses?", "Yes, GUVI offers a 7-day money-back guarantee for self-paced courses and prorated refunds for ZenClass programs based on specific terms and conditions."),
+    ("Are there group discounts available?", "GUVI provides corporate bulk discounts for team enrollments and special pricing for educational institutions and student groups."),
+    ("What is included in the course fee?", "Course fees include all learning materials, project resources, placement assistance, certificate, lifetime access to recorded sessions, and community support."),
+    ("Are there additional costs after enrollment?", "No hidden costs! All course materials, tools, software access, and support services are included in the course fee with no additional charges."),
+    
+    # Languages and Accessibility (5 pairs)
+    ("In which languages are GUVI courses available?", "GUVI courses are available in 10+ Indian languages: English, Hindi, Tamil, Telugu, Kannada, Malayalam, Marathi, Bengali, Gujarati, and Punjabi."),
+    ("Can I switch between languages during the course?", "Yes, students can access course materials in multiple languages and switch between them based on their comfort and understanding level."),
+    ("Are all features available in regional languages?", "Yes, course videos, assignments, quizzes, doubt support, and community discussions are all available in regional languages for comprehensive learning."),
+    ("How does GUVI ensure quality in regional languages?", "GUVI employs native language experts, subject matter specialists, and rigorous quality checks to maintain high standards across all language versions."),
+    ("Is customer support available in regional languages?", "Yes, GUVI provides customer support in multiple Indian languages through chat, email, and phone to assist learners in their preferred language."),
+    
+    # Technical and Platform (7 pairs)
+    ("What devices can I use to access GUVI courses?", "GUVI courses are accessible on desktop computers, laptops, tablets, and smartphones through web browsers and mobile apps for iOS and Android."),
+    ("Is internet connection required for all content?", "Most content requires internet connection, but GUVI mobile app allows downloading select video lectures for offline viewing during limited connectivity."),
+    ("What technical requirements are needed?", "Basic requirements include modern web browser, stable internet connection (2 Mbps+), and for coding courses, ability to install development tools."),
+    ("How is progress tracked on GUVI platform?", "GUVI platform tracks video completion, assignment submissions, quiz scores, project progress, and provides detailed analytics and performance insights."),
+    ("Is there a mobile app for GUVI?", "Yes, GUVI mobile app is available on Google Play Store and Apple App Store, offering full course access, offline content, and push notifications."),
+    ("What happens if I face technical issues?", "GUVI provides 24/7 technical support through live chat, email, and phone to resolve platform issues and ensure smooth learning experience."),
+    ("Can I access courses after completion?", "Yes, students get lifetime access to course materials, recorded sessions, and platform resources even after course completion for continuous reference.")# 👉 paste rest of your Q&A tuples here
+]
+
+# ==== PROGRESS TRACKER ====
+def load_progress():
+    if os.path.exists(PROGRESS_FILE):
+        with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"current_idx": 0, "total_pairs": len(new_pairs_raw)}
+
+def save_progress(idx, temp_data):
+    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+        json.dump({"current_idx": idx, "total_pairs": len(new_pairs_raw)}, f, indent=2)
+    with open(TEMP_DATA_FILE, "wb") as f:
+        pickle.dump(temp_data, f)
+    print(f"💾 Progress saved: processed {idx}/{len(new_pairs_raw)} base Q&As")
+
+# ==== TRANSLATION HELPERS ====
+def translate_text(txt, target_lang):
+    if target_lang == "en":
+        return txt
+    try:
+        return GoogleTranslator(source='en', target=target_lang).translate(txt)
+    except Exception as e:
+        print(f"⚠️ Translation failed to {target_lang}: {e}")
+        return txt
+
+# ==== MAIN EXECUTION ====
+if __name__ == "__main__":
+    # Load KB + index
+    with open(EXISTING_DOCS_FILE, "rb") as f:
+        existing_docs = pickle.load(f)
+    index = faiss.read_index(EXISTING_FAISS_INDEX)
+    print(f"✅ Loaded KB with {len(existing_docs)} entries, FAISS has {index.ntotal} vectors")
+
+    # Resume progress if exists
+    progress = load_progress()
+    if os.path.exists(TEMP_DATA_FILE):
+        with open(TEMP_DATA_FILE, "rb") as f:
+            all_new_entries = pickle.load(f)
+    else:
+        all_new_entries = []
+
+    start_idx = progress["current_idx"]
+
+    # Process remaining new QAs
+    for i in range(start_idx, len(new_pairs_raw)):
+        q, a = new_pairs_raw[i]
+        for lang_code in SUPPORTED_LANGS.keys():
+            tq = translate_text(q, lang_code)
+            ta = translate_text(a, lang_code)
+            all_new_entries.append({
+                "question": tq,
+                "answer": ta,
+                "text": f"Q: {tq}\nA: {ta}",
+                "lang": lang_code
+            })
+
+        # Save progress every SAVE_EVERY items
+        if (i + 1) % SAVE_EVERY == 0 or (i + 1) == len(new_pairs_raw):
+            save_progress(i + 1, all_new_entries)
+
+    # ==== EMBED NEW ENTRIES ====
+    print(f"⚡ Generating embeddings for {len(all_new_entries)} new entries (multi-language) ...")
+    embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    texts = [item["text"] for item in all_new_entries]
+    embeddings = embedder.encode(texts, batch_size=64).astype('float32')
+    faiss.normalize_L2(embeddings)
+
+    # ==== ADD TO FAISS & MERGE DOCS ====
+    index.add(embeddings)
+    updated_docs = existing_docs + all_new_entries
+
+    # ==== SAVE FINAL FILES ====
+    with open(EXISTING_DOCS_FILE, "wb") as f:
+        pickle.dump(updated_docs, f)
+    faiss.write_index(index, EXISTING_FAISS_INDEX)
+
+    # Cleanup temp files
+    if os.path.exists(PROGRESS_FILE): os.remove(PROGRESS_FILE)
+    if os.path.exists(TEMP_DATA_FILE): os.remove(TEMP_DATA_FILE)
+
+    print(f"🎯 Append+Translate complete → KB now has {len(updated_docs)} entries, FAISS has {index.ntotal} vectors")
