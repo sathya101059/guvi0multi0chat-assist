@@ -8,7 +8,7 @@ A multilingual assistant for GUVI course information and career guidance, suppor
 - AI fallback with fine-tuned FLAN model
 - Career guidance & course recommendation logic
 - Debug panel for live monitoring
-- Clean Indian-themed UI
+- Clean themed UI
 
 ## Dataset and Model Fine-Tuning Summary
 
