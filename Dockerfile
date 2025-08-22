@@ -10,10 +10,19 @@ COPY requirements.txt .
 # Install system packages needed to build some Python packages
 RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
+RUN pip cache purge
+
 # Install Python dependencies (including faiss-cpu)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire project code into the container
+# Pin compatible huggingface_hub version to avoid import errors
+RUN pip install huggingface_hub>=0.16.4,<0.18 --force-reinstall
+
+# Copy and run model download script during build
+COPY download_model.py .
+RUN python download_model.py
+
+# Copy app source code after model cached
 COPY . .
 
 # Expose the port where Streamlit runs
