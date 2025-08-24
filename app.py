@@ -1,13 +1,28 @@
 import os
 import pickle
-import faiss
 import numpy as np
 import streamlit as st
 from datetime import datetime
 from deep_translator import GoogleTranslator
 from langdetect import detect
 from sentence_transformers import SentenceTransformer
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+# Conditional import for faiss
+try:
+    import faiss
+except ImportError:
+    faiss = None
+    st.warning("FAISS is not installed; knowledge base search will be disabled.")
+
+# Conditional import for torch
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+except ImportError:
+    torch = None
+    AutoTokenizer = None
+    AutoModelForSeq2SeqLM = None
+    st.warning("Torch or Transformers are not installed; fallback FLAN generation disabled.")
 
 # ===== GLOBAL STATE =====
 if "messages" not in st.session_state:
@@ -28,6 +43,8 @@ INDIAN_LANGUAGES = {
 # ===== LOAD KB =====
 @st.cache_resource
 def load_kb():
+    if faiss is None:
+        return None, None, None
     with open(FAISS_DOCS, "rb") as f:
         docs = pickle.load(f)
     index = faiss.read_index(FAISS_IDX)
@@ -39,6 +56,8 @@ docs, index, embedder = load_kb()
 # ===== LOAD FLAN MODEL (LOCAL CACHE FIRST) =====
 @st.cache_resource
 def load_fallback_model():
+    if torch is None or AutoTokenizer is None or AutoModelForSeq2SeqLM is None:
+        return None, None
     try:
         if os.path.exists(CACHED_MODEL_DIR):
             tokenizer = AutoTokenizer.from_pretrained(os.path.join(CACHED_MODEL_DIR, "tokenizer"))
@@ -46,8 +65,8 @@ def load_fallback_model():
             st.sidebar.success("✅ FLAN loaded from local cache")
         else:
             hf_token = os.getenv("HF_TOKEN")
-            tokenizer = AutoTokenizer.from_pretrained(FINE_TUNED_MODEL, token=hf_token)
-            model = AutoModelForSeq2SeqLM.from_pretrained(FINE_TUNED_MODEL, token=hf_token)
+            tokenizer = AutoTokenizer.from_pretrained(FINE_TUNED_MODEL, use_auth_token=hf_token)
+            model = AutoModelForSeq2SeqLM.from_pretrained(FINE_TUNED_MODEL, use_auth_token=hf_token)
             st.sidebar.info("⬇️ Downloaded FLAN model from Hugging Face")
         return tokenizer, model
     except Exception as e:
@@ -74,6 +93,8 @@ def translate(text, src, tgt):
 
 # ===== FAISS KB SEARCH =====
 def search_kb(query_en, top_k=1):
+    if faiss is None or docs is None or index is None or embedder is None:
+        return []
     qvec = embedder.encode([query_en], normalize_embeddings=True).astype('float32')
     scores, idxs = index.search(qvec, top_k)
     results = []
@@ -81,7 +102,6 @@ def search_kb(query_en, top_k=1):
         if idx != -1:
             results.append((docs[int(idx.item())], score))
     return results
-
 
 # ===== INTENT CLASSIFICATION =====
 def detect_intent(query_en):
@@ -95,18 +115,15 @@ def detect_intent(query_en):
 
 # ===== FLAN FALLBACK GENERATION =====
 def generate_with_flan(query_en, kb_results):
-    if not FALLBACK_MODEL:
-        return None
-
+    if FALLBACK_MODEL is None or FALLBACK_TOKENIZER is None:
+        return "FLAN model is not available. Please contact support."
     context = "\n".join([r[0]["text"] for r in kb_results[:3]]) if kb_results else ""
     prompt = (
         "You are an expert assistant for GUVI courses and career guidance. "
         "Answer the user's question clearly and professionally using the context below. "
         "If you don't have the information, say you don't know and suggest contacting GUVI support at +91-93635 21396.\n\n"
-        f"User question:\n{query_en}\n\n"
-        f"Context:\n{context}\n\nAnswer:"
+        f"User question:\n{query_en}\n\nContext:\n{context}\n\nAnswer:"
     )
-
     inputs = FALLBACK_TOKENIZER(prompt, return_tensors="pt", truncation=True, max_length=512)
     outputs = FALLBACK_MODEL.generate(
         **inputs,
@@ -118,10 +135,8 @@ def generate_with_flan(query_en, kb_results):
         pad_token_id=FALLBACK_TOKENIZER.pad_token_id
     )
     answer = FALLBACK_TOKENIZER.decode(outputs[0], skip_special_tokens=True).strip()
-
     if len(answer) < 20:
         answer = "I'm sorry, I currently don’t have detailed information. Please reach out to GUVI support at +91-93635 21396."
-
     return answer
 
 # ===== UI =====
@@ -171,7 +186,7 @@ if submitted and user_input.strip():
         "Translated Query": query_en,
         "Intent": intent,
         "KB Hit": bool(best_doc),
-        "KB Confidence": round(float(score.item()), 3)
+        "KB Confidence": round(float(score.item()), 3) if score else 0
     }
     if enable_debug:
         st.sidebar.markdown("### 🛠 Debug Info")
