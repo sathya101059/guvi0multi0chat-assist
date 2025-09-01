@@ -1,0 +1,18 @@
+
+
+What does GUVI's Data Science course cover?", "GUVI's Data Science course covers Python programming, statistics, machine learning, deep learning, data visualization, SQL, big data technologies, and real-world project implementation over 6-8 months."),
+    ("Is coding experience required for Data Science course?", "No prior coding experience is required. The course starts with Python fundamentals and gradually progresses to advanced topics, making it perfect for beginners."),
+    ("How long is the Data Science course?", "The comprehensive Data Science course is 6-8 months long with flexible scheduling. Students can choose between self-paced learning and live instructor-led classes."),
+    ("What tools are taught in Data Science course?", "Students learn Python, SQL, pandas, NumPy, matplotlib, seaborn, scikit-learn, TensorFlow, Keras, Jupyter notebooks, Git, and cloud platforms like AWS."),
+    ("What projects are included in Data Science course?", "The course includes 5+ industry projects: predictive analytics, recommendation systems, sentiment analysis, image recognition, and a capstone project with real datasets."),
+    ("What career opportunities after Data Science course?", "Graduates can pursue roles as Data Scientist, Machine Learning Engineer, Data Analyst, Business Intelligence Analyst, AI Engineer with salaries ranging ₹6-15 LPA."),
+	
+	
+	    ("How long is the Data Science course?", "The comprehensive Data Science course is 6-8 months long with flexible scheduling. Students can choose between self-paced learning and live instructor-led classes."),
+	டேட்டா சயின்ஸ் படிப்பு எவ்வளவு காலம்?", "விரிவான டேட்டா சயின்ஸ் படிப்பு 6-8 மாதங்கள் நீடிக்கும், நெகிழ்வான திட்டமிடலுடன். மாணவர்கள் சுய-வேக கற்றல் மற்றும் நேரடி பயிற்றுவிப்பாளர் தலைமையிலான வகுப்புகளுக்கு இடையே தேர்வு செய்யலாம்."),
+	डेटा साइंस कोर्स कितने समय का है?", "व्यापक डेटा साइंस कोर्स 6-8 महीने का है और इसमें लचीले शेड्यूलिंग की सुविधा है। छात्र स्व-गति से सीखने और प्रशिक्षक द्वारा संचालित लाइव कक्षाओं में से चुन सकते हैं।"),
+	ಡೇಟಾ ಸೈನ್ಸ್ ಕೋರ್ಸ್ ಎಷ್ಟು ಉದ್ದವಾಗಿದೆ?", "ಸಮಗ್ರ ಡೇಟಾ ಸೈನ್ಸ್ ಕೋರ್ಸ್ 6-8 ತಿಂಗಳುಗಳ ಅವಧಿಯದ್ದಾಗಿದ್ದು, ಹೊಂದಿಕೊಳ್ಳುವ ವೇಳಾಪಟ್ಟಿಯನ್ನು ಹೊಂದಿದೆ. ವಿದ್ಯಾರ್ಥಿಗಳು ಸ್ವಯಂ-ಗತಿಯ ಕಲಿಕೆ ಮತ್ತು ನೇರ ಬೋಧಕರ ನೇತೃತ್ವದ ತರಗತಿಗಳ ನಡುವೆ ಆಯ್ಕೆ ಮಾಡಬಹುದು."),
+	డేటా సైన్స్ కోర్సు ఎంత కాలం ఉంటుంది?", "సమగ్ర డేటా సైన్స్ కోర్సు 6-8 నెలల పాటు ఉంటుంది, ఇది సౌకర్యవంతమైన షెడ్యూలింగ్‌తో ఉంటుంది. విద్యార్థులు స్వీయ-వేగవంతమైన అభ్యాసం మరియు ప్రత్యక్ష బోధకుల నేతృత్వంలోని తరగతుల మధ్య ఎంచుకోవచ్చు.")
+	ਡੇਟਾ ਸਾਇੰਸ ਕੋਰਸ ਕਿੰਨਾ ਲੰਬਾ ਹੈ?", "ਵਿਆਪਕ ਡੇਟਾ ਸਾਇੰਸ ਕੋਰਸ ਲਚਕਦਾਰ ਸਮਾਂ-ਸਾਰਣੀ ਦੇ ਨਾਲ 6-8 ਮਹੀਨੇ ਲੰਬਾ ਹੈ। ਵਿਦਿਆਰਥੀ ਸਵੈ-ਰਫ਼ਤਾਰ ਸਿਖਲਾਈ ਅਤੇ ਲਾਈਵ ਇੰਸਟ੍ਰਕਟਰ-ਅਗਵਾਈ ਵਾਲੀਆਂ ਕਲਾਸਾਂ ਵਿੱਚੋਂ ਇੱਕ ਦੀ ਚੋਣ ਕਰ ਸਕਦੇ ਹਨ।"
+	ഡാറ്റാ സയൻസ് കോഴ്‌സിന് എത്ര ദൈർഘ്യമുണ്ട്?", "സമഗ്ര ഡാറ്റാ സയൻസ് കോഴ്‌സ് 6-8 മാസം ദൈർഘ്യമുള്ളതാണ്, വഴക്കമുള്ള ഷെഡ്യൂളിംഗും ഉണ്ട്. വിദ്യാർത്ഥികൾക്ക് സ്വയം-വേഗതയുള്ള പഠനത്തിനും തത്സമയ ഇൻസ്ട്രക്ടർ നയിക്കുന്ന ക്ലാസുകൾക്കും ഇടയിൽ തിരഞ്ഞെടുക്കാം."),
+	ડેટા સાયન્સ કોર્સ કેટલો લાંબો છે?", "વ્યાપક ડેટા સાયન્સ કોર્સ 6-8 મહિના લાંબો છે જેમાં લવચીક સમયપત્રક છે. વિદ્યાર્થીઓ સ્વ-ગતિશીલ શિક્ષણ અને લાઇવ પ્રશિક્ષક-આગેવાની હેઠળના વર્ગો વચ્ચે પસંદગી કરી શકે છે."),
